@@ -3,7 +3,6 @@ import pandas as pd
 
 # ===== SISTEMA DE SENHA =====
 def checar_senha():
-    """Retorna True se o usuário digitou a senha correta."""
     def senha_inserida():
         if st.session_state["senha_digitada"] == st.secrets["senha_acesso"]:
             st.session_state["senha_correta"] = True
@@ -24,12 +23,33 @@ def checar_senha():
 if not checar_senha():
     st.stop()
 
+# ===== FUNÇÃO PARA IDENTIFICAR QUEM FICOU DE FORA =====
+def calcular_sobras(df_selecionados, mapas):
+    """Cruza a lista de alunos selecionados com quem realmente foi alocado nos mapas."""
+    alocados = set()
+    for mapa in mapas.values():
+        for linha in mapa:
+            for aluno in linha:
+                if aluno:
+                    alocados.add(f"{aluno.get('nome', '')}_{aluno.get('turma', '')}")
+    
+    # Cria uma cópia para não mexer no dataframe original
+    df_verificacao = df_selecionados.copy()
+    df_verificacao["chave"] = df_verificacao["nome"] + "_" + df_verificacao["turma"]
+    
+    # Filtra os alunos que NÃO estão no set de alocados e tira os "Ausentes"
+    df_sobras = df_verificacao[
+        (~df_verificacao["chave"].isin(alocados)) & 
+        (df_verificacao["Status"] != "Ausente")
+    ].drop(columns=["chave"])
+    
+    return df_sobras
+
 # ============================
 from services.sheets import carregar_planilha
 from logic.round_robin import preparar_fila_round_robin, preparar_filas_por_turma
 from logic.alocacao import alocar, alocar_terceirao
 from ui.layout import render_layout
-# Importamos a nova função aqui:
 from ui.mapas import exibir_mapa, exibir_listas_patio, exibir_listas_assinaturas
 from ui.export import exportar_excel
 from ui.selecao_alunos import selecionar_alunos
@@ -86,9 +106,16 @@ if is_terceirao:
             for nome_sala, mapa in mapas_flx.items():
                 mapas_completos[f"{nome_sala} (FLEX)"] = mapa
 
+            # CÁLCULO DAS SOBRAS REAIS
+            df_lista_sobras = calcular_sobras(alunos_s1_editados, mapas_completos)
+            
+            if not df_lista_sobras.empty:
+                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
+                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
+
             st.download_button(
                 label="📥 Baixar Planilha para Impressão",
-                data=exportar_excel(mapas_completos),
+                data=exportar_excel(mapas_completos, df_lista_sobras),
                 file_name=f"Mapas_{s1}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
@@ -96,8 +123,6 @@ if is_terceirao:
 
             st.markdown("---")
             exibir_listas_patio(mapas_completos)
-            
-            # Adicionamos a lista de assinaturas aqui
             exibir_listas_assinaturas(mapas_completos)
 
             st.markdown("---")
@@ -162,9 +187,17 @@ elif s1 and s2 and s1 != s2:
             for nome_sala, mapa in mapas_flx.items():
                 mapas_completos[f"{nome_sala} (FLEX)"] = mapa
 
+            # CÁLCULO DAS SOBRAS REAIS
+            df_todos_alunos = pd.concat([alunos_s1_editados, alunos_s2_editados])
+            df_lista_sobras = calcular_sobras(df_todos_alunos, mapas_completos)
+
+            if not df_lista_sobras.empty:
+                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
+                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
+
             st.download_button(
                 label="📥 Baixar Planilha para Impressão",
-                data=exportar_excel(mapas_completos),
+                data=exportar_excel(mapas_completos, df_lista_sobras),
                 file_name=f"Mapas_{s1}_{s2}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
@@ -172,8 +205,6 @@ elif s1 and s2 and s1 != s2:
 
             st.markdown("---")
             exibir_listas_patio(mapas_completos)
-            
-            # Adicionamos a lista de assinaturas aqui também
             exibir_listas_assinaturas(mapas_completos)
 
             st.markdown("---")
