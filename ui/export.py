@@ -1,7 +1,7 @@
 import pandas as pd
 import io
 
-def exportar_excel(mapas):
+def exportar_excel(mapas, df_sobras=None):
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -12,12 +12,17 @@ def exportar_excel(mapas):
             output.seek(0)
             return output
 
-        # 1. Criar a aba de Lista de Alunos (Para afixar no Pátio) - SEM ESTIGMA
+        # --- NOVO: Aba de Sobras (Se houver) ---
+        if df_sobras is not None and not df_sobras.empty:
+            df_sobras_export = df_sobras[["serie", "turma", "nome", "Status"]].rename(
+                columns={"serie": "Série", "turma": "Turma", "nome": "Nome"}
+            )
+            df_sobras_export.to_excel(writer, sheet_name="ALERTA - Sobras", index=False)
+
+        # 1. Criar a aba de Lista de Alunos (Para afixar no Pátio)
         dados_lista = []
         for sala, mapa in mapas.items():
-            # Remove o rótulo (FLEX) do nome da sala para as listas públicas
             sala_limpa = sala.replace(" (FLEX)", "")
-            
             for linha in mapa:
                 for aluno in linha:
                     if aluno:
@@ -33,11 +38,10 @@ def exportar_excel(mapas):
             df_lista.sort_values(by=["Série", "Turma", "Nome"], inplace=True)
             df_lista.to_excel(writer, sheet_name="Lista do Pátio", index=False)
 
-        # 2. Criar a aba de Lista de Assinaturas (Para o professor na sala) - SEM ESTIGMA
+        # 2. Criar a aba de Lista de Assinaturas (Para o professor na sala)
         dados_assinaturas = []
         for sala, mapa in mapas.items():
             sala_limpa = sala.replace(" (FLEX)", "")
-            
             for linha in mapa:
                 for aluno in linha:
                     if aluno:
