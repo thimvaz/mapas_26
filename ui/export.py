@@ -1,7 +1,7 @@
 import pandas as pd
 import io
 
-def exportar_excel(mapas, df_sobras=None):
+def exportar_excel(mapas, df_sobras=None, df_inclusao=None):
     output = io.BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -12,13 +12,21 @@ def exportar_excel(mapas, df_sobras=None):
             output.seek(0)
             return output
 
+        # 1. Aba de Sobras
         if df_sobras is not None and not df_sobras.empty:
             df_sobras_export = df_sobras[["serie", "turma", "nome", "Status"]].rename(
                 columns={"serie": "Série", "turma": "Turma", "nome": "Nome"}
             )
             df_sobras_export.to_excel(writer, sheet_name="ALERTA - Sobras", index=False)
 
-        # 1. Lista do Pátio
+        # 2. NOVO: Aba de Inclusão
+        if df_inclusao is not None and not df_inclusao.empty:
+            df_inc_export = df_inclusao[["serie", "turma", "nome"]].rename(
+                columns={"serie": "Série", "turma": "Turma", "nome": "Nome"}
+            )
+            df_inc_export.to_excel(writer, sheet_name="Inclusão", index=False)
+
+        # 3. Lista do Pátio
         dados_lista = []
         for sala, mapa in mapas.items():
             sala_limpa = sala.replace(" (FLEX)", "")
@@ -37,7 +45,7 @@ def exportar_excel(mapas, df_sobras=None):
             df_lista.sort_values(by=["Série", "Turma", "Nome"], inplace=True)
             df_lista.to_excel(writer, sheet_name="Lista do Pátio", index=False)
 
-        # 2. Lista de Assinaturas (Puxando RM e "chamada")
+        # 4. Lista de Assinaturas
         dados_assinaturas = []
         for sala, mapa in mapas.items():
             sala_limpa = sala.replace(" (FLEX)", "")
@@ -47,7 +55,6 @@ def exportar_excel(mapas, df_sobras=None):
                         rm_aluno = str(aluno.get("RM", aluno.get("rm", "")))
                         num_aluno = str(aluno.get("chamada", aluno.get("Chamada", "")))
                         
-                        # Limpa o decimal caso o Pandas leia como float (ex: 4524.0 -> 4524)
                         if num_aluno.endswith('.0'):
                             num_aluno = num_aluno[:-2]
                         if rm_aluno.endswith('.0'):
@@ -66,7 +73,7 @@ def exportar_excel(mapas, df_sobras=None):
             df_assinaturas = pd.DataFrame(dados_assinaturas)
             df_assinaturas.to_excel(writer, sheet_name="Lista de Assinaturas", index=False)
 
-        # 3. Mapas Visuais
+        # 5. Mapas Visuais
         for sala, mapa in mapas.items():
             matriz_excel = []
             for linha in mapa:
