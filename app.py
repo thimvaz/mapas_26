@@ -1,11 +1,36 @@
 import streamlit as st
 import pandas as pd
 
+# ===== SISTEMA DE SENHA =====
+def checar_senha():
+    """Retorna True se o usuário digitou a senha correta."""
+    def senha_inserida():
+        if st.session_state["senha_digitada"] == st.secrets["senha_acesso"]:
+            st.session_state["senha_correta"] = True
+            del st.session_state["senha_digitada"]
+        else:
+            st.session_state["senha_correta"] = False
+
+    if "senha_correta" not in st.session_state:
+        st.text_input("🔐 Digite a senha para acessar o Gerador de Mapas:", type="password", on_change=senha_inserida, key="senha_digitada")
+        return False
+    elif not st.session_state["senha_correta"]:
+        st.text_input("🔐 Digite a senha para acessar o Gerador de Mapas:", type="password", on_change=senha_inserida, key="senha_digitada")
+        st.error("😕 Senha incorreta. Tente novamente.")
+        return False
+    else:
+        return True
+
+if not checar_senha():
+    st.stop()
+
+# ============================
 from services.sheets import carregar_planilha
 from logic.round_robin import preparar_fila_round_robin, preparar_filas_por_turma
 from logic.alocacao import alocar, alocar_terceirao
 from ui.layout import render_layout
-from ui.mapas import exibir_mapa, exibir_listas_patio
+# Importamos a nova função aqui:
+from ui.mapas import exibir_mapa, exibir_listas_patio, exibir_listas_assinaturas
 from ui.export import exportar_excel
 from ui.selecao_alunos import selecionar_alunos
 
@@ -13,12 +38,10 @@ from ui.selecao_alunos import selecionar_alunos
 ID_ALUNOS = "1ku2R7umGREP6foZC8Qk-46bEsB9QD2_fAUH18IcRYrc"
 ID_SALAS = "1BF8ENESt0jQurf_5pDeDJbk0Y3Vns90Qsrsc8lRi0ZE"
 
-# Carregamento dos dados
 df_alunos = carregar_planilha(ID_ALUNOS)
 df_salas = carregar_planilha(ID_SALAS, "salas")
 df_turma_sala = carregar_planilha(ID_SALAS, "turma_sala")
 
-# Interface da Barra Lateral
 s1, s2, is_terceirao, salas_flex, gerar = render_layout(df_alunos, df_salas, df_turma_sala)
 
 # ===== VIA A: LÓGICA DO TERCEIRÃO =====
@@ -45,7 +68,6 @@ if is_terceirao:
             mapas_reg, sob_reg, ok_reg, qb_reg = alocar_terceirao(filas_reg, df_salas_regulares)
             mapas_flx, sob_flx, ok_flx, qb_flx = alocar_terceirao(filas_flx, df_salas_flex)
 
-            # Resultados Terceirão
             st.markdown("---")
             st.markdown("### 🎯 Resultado da Alocação Regular")
             r1, r2, r3 = st.columns(3)
@@ -74,6 +96,9 @@ if is_terceirao:
 
             st.markdown("---")
             exibir_listas_patio(mapas_completos)
+            
+            # Adicionamos a lista de assinaturas aqui
+            exibir_listas_assinaturas(mapas_completos)
 
             st.markdown("---")
             st.markdown("### 🗺️ Mapas Regulares")
@@ -147,6 +172,9 @@ elif s1 and s2 and s1 != s2:
 
             st.markdown("---")
             exibir_listas_patio(mapas_completos)
+            
+            # Adicionamos a lista de assinaturas aqui também
+            exibir_listas_assinaturas(mapas_completos)
 
             st.markdown("---")
             st.markdown("### 🗺️ Mapas Regulares")
