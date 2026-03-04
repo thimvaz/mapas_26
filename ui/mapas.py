@@ -12,7 +12,6 @@ def exibir_mapa(nome, mapa):
                 cor_fundo = "#ffebee" if aluno.get("quebra_regra") else "transparent"
                 alerta = " ⚠️" if aluno.get("quebra_regra") else ""
                 
-                # Agora usa o nome completo com quebra de linha (<br>)
                 nome_completo = aluno.get('nome', '')
                 info_aluno = f"<strong>{nome_completo}</strong><br><small>{aluno.get('serie', '')} {aluno.get('turma', '')}</small>"
                 
@@ -26,11 +25,9 @@ def exibir_mapa(nome, mapa):
 
 
 def exibir_listas_patio(mapas):
-    """Extrai os alunos alocados dos mapas e cria listas expansíveis organizadas por turma."""
     dados = []
     for sala, mapa in mapas.items():
         sala_limpa = sala.replace(" (FLEX)", "")
-        
         for linha in mapa:
             for aluno in linha:
                 if aluno:
@@ -59,20 +56,26 @@ def exibir_listas_patio(mapas):
             )
 
 def exibir_listas_assinaturas(mapas):
-    """Cria listas expansíveis organizadas por sala para assinaturas (ordem das carteiras)."""
     dados = []
     for sala, mapa in mapas.items():
         sala_limpa = sala.replace(" (FLEX)", "")
-        
         for linha in mapa:
             for aluno in linha:
                 if aluno:
+                    rm_aluno = str(aluno.get("RM", aluno.get("rm", "")))
+                    num_aluno = str(aluno.get("chamada", aluno.get("Chamada", "")))
+                    
+                    if num_aluno.endswith('.0'):
+                        num_aluno = num_aluno[:-2]
+                    if rm_aluno.endswith('.0'):
+                        rm_aluno = rm_aluno[:-2]
+                    
                     dados.append({
                         "Sala": sala_limpa,
                         "Série/Turma": f"{aluno.get('serie', '')} {aluno.get('turma', '')}",
                         "Nome": str(aluno.get("nome", "")),
-                        "RM": str(aluno.get("rm", "")),
-                        "Nº": str(aluno.get("numero", "")),
+                        "RM": rm_aluno,
+                        "Nº": num_aluno,
                         "Assinatura": ""
                     })
     
@@ -80,7 +83,6 @@ def exibir_listas_assinaturas(mapas):
         return
 
     df_assinaturas = pd.DataFrame(dados)
-    # Não ordenamos alfabeticamente aqui para manter a ordem física das carteiras
     agrupamentos = df_assinaturas.groupby("Sala", sort=False)
 
     st.markdown("### ✍️ Listas de Assinaturas (Por Sala)")
