@@ -25,7 +25,6 @@ if not checar_senha():
 
 # ===== FUNÇÃO PARA IDENTIFICAR QUEM FICOU DE FORA =====
 def calcular_sobras(df_selecionados, mapas):
-    """Cruza a lista de alunos selecionados com quem realmente foi alocado nos mapas."""
     alocados = set()
     for mapa in mapas.values():
         for linha in mapa:
@@ -33,14 +32,13 @@ def calcular_sobras(df_selecionados, mapas):
                 if aluno:
                     alocados.add(f"{aluno.get('nome', '')}_{aluno.get('turma', '')}")
     
-    # Cria uma cópia para não mexer no dataframe original
     df_verificacao = df_selecionados.copy()
     df_verificacao["chave"] = df_verificacao["nome"] + "_" + df_verificacao["turma"]
     
-    # Filtra os alunos que NÃO estão no set de alocados e tira os "Ausentes"
+    # Ignora quem estiver marcado como "Inclusão" nas sobras
     df_sobras = df_verificacao[
         (~df_verificacao["chave"].isin(alocados)) & 
-        (df_verificacao["Status"] != "Ausente")
+        (df_verificacao["Status"] != "Inclusão")
     ].drop(columns=["chave"])
     
     return df_sobras
@@ -88,7 +86,17 @@ if is_terceirao:
             mapas_reg, sob_reg, ok_reg, qb_reg = alocar_terceirao(filas_reg, df_salas_regulares)
             mapas_flx, sob_flx, ok_flx, qb_flx = alocar_terceirao(filas_flx, df_salas_flex)
 
+            mapas_completos = {**mapas_reg}
+            for nome_sala, mapa in mapas_flx.items():
+                mapas_completos[f"{nome_sala} (FLEX)"] = mapa
+
             st.markdown("---")
+            
+            df_lista_sobras = calcular_sobras(alunos_s1_editados, mapas_completos)
+            if not df_lista_sobras.empty:
+                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
+                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
+
             st.markdown("### 🎯 Resultado da Alocação Regular")
             r1, r2, r3 = st.columns(3)
             r1.metric("Alocação Perfeita", ok_reg)
@@ -102,26 +110,22 @@ if is_terceirao:
                 f2.metric("Quebras de Padrão", qb_flx, delta_color="off")
                 f3.metric("Sobras", sob_flx, delta_color="inverse" if sob_flx > 0 else "off")
 
-            mapas_completos = {**mapas_reg}
-            for nome_sala, mapa in mapas_flx.items():
-                mapas_completos[f"{nome_sala} (FLEX)"] = mapa
-
-            # CÁLCULO DAS SOBRAS REAIS
-            df_lista_sobras = calcular_sobras(alunos_s1_editados, mapas_completos)
+            # EXTRAINDO E EXIBINDO OS ALUNOS DE INCLUSÃO
+            df_inclusao = alunos_s1_editados[alunos_s1_editados["Status"] == "Inclusão"]
             
-            if not df_lista_sobras.empty:
-                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
-                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
-
             st.download_button(
                 label="📥 Baixar Planilha para Impressão",
-                data=exportar_excel(mapas_completos, df_lista_sobras),
+                data=exportar_excel(mapas_completos, df_lista_sobras, df_inclusao),
                 file_name=f"Mapas_{s1}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
 
             st.markdown("---")
+            if not df_inclusao.empty:
+                with st.expander(f"♿ Alunos de Inclusão ({len(df_inclusao)}) - Aplicação Individual"):
+                    st.dataframe(df_inclusao[["serie", "turma", "nome"]].reset_index(drop=True), use_container_width=True)
+
             exibir_listas_patio(mapas_completos)
             exibir_listas_assinaturas(mapas_completos)
 
@@ -167,7 +171,19 @@ elif s1 and s2 and s1 != s2:
             mapas_reg, sob1_reg, sob2_reg, ok_reg, qb_reg = alocar(fila_s1_reg, fila_s2_reg, df_salas_regulares)
             mapas_flx, sob1_flx, sob2_flx, ok_flx, qb_flx = alocar(fila_s1_flex, fila_s2_flex, df_salas_flex)
 
+            mapas_completos = {**mapas_reg}
+            for nome_sala, mapa in mapas_flx.items():
+                mapas_completos[f"{nome_sala} (FLEX)"] = mapa
+
             st.markdown("---")
+
+            df_todos_alunos = pd.concat([alunos_s1_editados, alunos_s2_editados])
+            df_lista_sobras = calcular_sobras(df_todos_alunos, mapas_completos)
+
+            if not df_lista_sobras.empty:
+                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
+                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
+
             st.markdown("### 🎯 Resultado da Alocação Regular")
             r1, r2, r3, r4 = st.columns(4)
             r1.metric("Alocação Perfeita", ok_reg)
@@ -183,27 +199,22 @@ elif s1 and s2 and s1 != s2:
                 f3.metric(f"Sobras ({s1})", sob1_flx, delta_color="inverse" if sob1_flx > 0 else "off")
                 f4.metric(f"Sobras ({s2})", sob2_flx, delta_color="inverse" if sob2_flx > 0 else "off")
 
-            mapas_completos = {**mapas_reg}
-            for nome_sala, mapa in mapas_flx.items():
-                mapas_completos[f"{nome_sala} (FLEX)"] = mapa
-
-            # CÁLCULO DAS SOBRAS REAIS
-            df_todos_alunos = pd.concat([alunos_s1_editados, alunos_s2_editados])
-            df_lista_sobras = calcular_sobras(df_todos_alunos, mapas_completos)
-
-            if not df_lista_sobras.empty:
-                st.error(f"🚨 ALERTA: {len(df_lista_sobras)} aluno(s) ficaram sem carteira por falta de espaço físico!")
-                st.dataframe(df_lista_sobras[["serie", "turma", "nome", "Status"]].reset_index(drop=True), use_container_width=True)
+            # EXTRAINDO E EXIBINDO OS ALUNOS DE INCLUSÃO
+            df_inclusao = df_todos_alunos[df_todos_alunos["Status"] == "Inclusão"]
 
             st.download_button(
                 label="📥 Baixar Planilha para Impressão",
-                data=exportar_excel(mapas_completos, df_lista_sobras),
+                data=exportar_excel(mapas_completos, df_lista_sobras, df_inclusao),
                 file_name=f"Mapas_{s1}_{s2}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
 
             st.markdown("---")
+            if not df_inclusao.empty:
+                with st.expander(f"♿ Alunos de Inclusão ({len(df_inclusao)}) - Aplicação Individual"):
+                    st.dataframe(df_inclusao[["serie", "turma", "nome"]].reset_index(drop=True), use_container_width=True)
+
             exibir_listas_patio(mapas_completos)
             exibir_listas_assinaturas(mapas_completos)
 
