@@ -22,7 +22,7 @@ def selecionar_alunos(df, titulo):
                 "Local de Prova",
                 help="Escolha onde o aluno fará a prova",
                 width="medium",
-                options=["Regular", "Flex", "Ausente"],
+                options=["Regular", "Flex", "Inclusão"],
                 required=True,
             ),
             "nome": st.column_config.TextColumn("Nome do Aluno", disabled=True),
